@@ -1,0 +1,26 @@
+'''
+
+Antenna factors for:
+
+400-1000MHz PCB Log Periodic WA5VJB
+http://www.wa5vjb.com/products1.html
+
+Note that every PCB antenna will be different so you should
+adjust these antenna factors for your particular antenna.
+
+'''
+
+# The antenna factor table
+afe = [
+    [350000000,18.8],
+    [400000000,18.8],
+    [450000000,17.7],
+    [500000000,18.2],
+    [600000000,19.8],
+    [700000000,21.2],
+    [800000000,22.3],
+    [900000000,23.3],
+    [1000000000,24.2],
+    [1050000000,24.7],
+    ]
+
