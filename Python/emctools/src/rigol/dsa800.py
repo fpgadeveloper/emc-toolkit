@@ -40,6 +40,17 @@ class dsa800(object):
         # Create the resource manager
         self.rm = visa.ResourceManager()
         self.resource = None
+        self.config_func = {
+            'data_format' : {'set':self.set_data_format,'get':self.get_data_format},
+            'sweep_points' : {'set':self.set_sweep_points,'get':self.get_sweep_points},
+            'trace_mode' : {'set':self.set_trace_mode,'get':self.get_trace_mode},
+            'preamp_en' : {'set':self.set_preamp_en,'get':self.get_preamp_en},
+            'units' : {'set':self.set_unit,'get':self.get_unit},
+            'emi_filter_en' : {'set':self.set_emi_filter_en,'get':self.get_emi_filter_en},
+            'rbw' : {'set':self.set_rbw,'get':self.get_rbw},
+            'tg_en' : {'set':self.set_tg_output_en,'get':self.get_tg_output_en},
+            'tg_amplitude' : {'set':self.set_tg_amplitude,'get':self.get_tg_amplitude},
+            }
 
     """ Returns a list of detected VISA resource names """
     def list_devices(self):
@@ -155,13 +166,21 @@ class dsa800(object):
         else:
             return False
 
-    """ Get resolution bandwidth (RBW) """
+    """ Set resolution bandwidth (RBW) """
     def set_rbw(self,freq):
         self.resource.write(":SENSe:BAND %d" % freq)
     
     """ Get resolution bandwidth (RBW) """
     def get_rbw(self):
         return self.resource.query(":SENSe:BAND?")
+    
+    """ Set sweep points (101 to 3001) """
+    def set_sweep_points(self,points):
+        self.resource.write(":SENSe:SWEep:POINts %d" % points)
+    
+    """ Get sweep points (101 to 3001) """
+    def get_sweep_points(self):
+        return int(self.resource.query(":SENSe:SWEep:POINts?"))
     
     """ Get trace data """
     def get_trace(self):
@@ -198,29 +217,24 @@ class dsa800(object):
         
     """ Set DSA configuration """
     def set_config(self,config):
-        # Set the data format
-        self.set_data_format(config.data_format)
-        # Set the trace mode
-        self.set_trace_mode(config.trace_mode)
-        # Enable/disable preamp
-        self.set_preamp_en(config.preamp_en)
-        # Set the units
-        self.set_unit(config.units)
-        # Set the EMI filter enable
-        self.set_emi_filter_en(config.emi_filter_en)
-        # Set the resolution bandwidth
-        self.set_rbw(config.rbw)
-        # Set the TG output enable
-        self.set_tg_output_en(config.tg_en)
-        # Set the TG amplitude
-        self.set_tg_amplitude(config.tg_amplitude)
+        # Iterate through the parameters and set them
+        for setting,value in config.param.items():
+            self.config_func[setting]['set'](value)
+        # Wait for config to be applied
+        time.sleep(1)
         
     """ Get trace (advanced) - returns 2-dim numpy array of floats """
     def get_trace_adv(self,start_freq,stop_freq,span,delay=0):
+        # Check the trace mode to determine whether we need to wait for each trace segment
+        trace_mode = self.get_trace_mode()
+        must_wait = (trace_mode == 'MAXHold') or (trace_mode == 'MINHold') or \
+                    (trace_mode == 'VIDeoavg') or (trace_mode == 'POWeravg')
         # Initialize start frequency and trace list
         start_f = start_freq
         trace = np.array([],np.float)
         while(start_f < stop_freq):
+            # Set the trace mode to reset the trace
+            self.set_trace_mode(trace_mode)
             # Set the start freq
             print("Setting start freq to:",start_f)
             self.set_start_freq(start_f)
@@ -228,7 +242,8 @@ class dsa800(object):
             self.set_stop_freq(start_f + span)
             print("Start:",self.get_start_freq(),"Stop:",self.get_stop_freq(),"Span:",self.get_span())
             # Allow time to average the trace
-            time.sleep(delay)
+            if must_wait:
+                time.sleep(delay)
             # Read the trace data
             trace_data = self.get_trace()
             # Append all data except the last point
@@ -253,14 +268,17 @@ DSA800 configuration class for storing a particular configuration
 """
 class dsa800_config():
     def __init__(self):
-        self.data_format = 'ASCii'
-        self.trace_mode = 'WRITe'
-        self.preamp_en = False
-        self.units = 'DBM'
-        self.emi_filter_en = False
-        self.rbw = 100000
-        self.tg_en = False
-        self.tg_amplitude = -40
+        self.param = {
+            'data_format' : 'ASCii',
+            'trace_mode' : 'WRITe',
+            'sweep_points' : 601,
+            'preamp_en' : False,
+            'units' : 'DBM',
+            'emi_filter_en' : False,
+            'rbw' : 100000,
+            'tg_en' : False,
+            'tg_amplitude' : -40,
+            }
 
 
         
@@ -277,11 +295,10 @@ if __name__ == '__main__':
     
     # Create the DSA configuration
     config = dsa800_config()
-    config.trace_mode = 'POWeravg'
-    config.preamp_en = True
-    config.units = 'DBUV'
-    config.emi_filter_en = True
-    config.rbw = 120000
+    config.param['preamp_en'] = True
+    config.param['units'] = 'DBUV'
+    config.param['emi_filter_en'] = True
+    config.param['rbw'] = 120000
     
     # Connect to the DSA using the identity string
     try:
