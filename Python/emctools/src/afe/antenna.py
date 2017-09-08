@@ -3,22 +3,34 @@
 The antenna class stores antenna factors for a particular antenna
 and provides functions that can calculate interpolated antenna
 factors for a given array of frequencies, and also correct a
-measurement. 
+measurement.
+
+The constructor is called with a 'filename' string argument which
+is the name of a CSV file containing the antenna factors. Refer
+to the example antenna factor CSV files in this project.
 
 '''
 
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import interpolate
+import csv
 
 """
-Antenna class to represent the biconical afe
+Antenna class
 """
 class antenna(object):
     """ """
-    def __init__(self,afe):
-        # Create the afe factor table
-        self.afe = np.array(afe)
+    def __init__(self,filename):
+        # Read the antenna factor CSV file
+        with open(filename) as csvfile:
+            r = csv.reader(csvfile)
+            # Skip comments
+            line = next(r)
+            while line != ['Frequency','AF']:
+                line = next(r)
+            # Read antenna factors into numpy array
+            self.afe = np.array(list(r),dtype=np.float)
         # f = frequency, af = afe factor 
         f = self.afe.T[0]
         af = self.afe.T[1]
@@ -47,10 +59,9 @@ if __name__ == '__main__':
     """
     Displays the afe factors and the interpolation
     """
-    from afe import pcb_400_1000_lp
     
     # Create the afe
-    ant = antenna(pcb_400_1000_lp.afe)
+    ant = antenna('pcb_400_1000_lp.csv')
     
     # f = frequency, af = afe factor 
     f = ant.afe.T[0]

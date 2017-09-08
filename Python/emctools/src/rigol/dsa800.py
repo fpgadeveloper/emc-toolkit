@@ -86,8 +86,19 @@ class dsa800(object):
         return self.rm.list_resources()
         
     """ Connect to the DSA using the id string """
-    def connect(self, idn):
-        self.resource = self.rm.open_resource(idn,send_end=True,query_delay=1)
+    def connect(self, idn=None):
+        self.resource = None
+        # If VISA ID provided, then connect to that ID
+        if idn:
+            self.resource = self.rm.open_resource(idn,send_end=True,query_delay=1)
+        # Otherwise search for a connected DSA800
+        else:
+            devices = self.list_devices()
+            for d in devices:
+                if d.split('::')[-2].startswith('DSA8'):
+                    self.resource = self.rm.open_resource(d,send_end=True,query_delay=1)
+            if self.resource == None:
+                raise Exception('Could not find DSA800, please make sure DSA is connected')
         self.resource.read_termination = '\n'
         self.resource.write_termination = '\n'
         self.resource.timeout = 5000
@@ -286,7 +297,7 @@ class dsa800(object):
         if func in DET_FUNC.values():
             self.resource.write(":DETector:FUNCtion %s" % func)
         else:
-            print('Data format must be:',', '.join(DET_FUNC.values()))
+            print('Detector function must be:',', '.join(DET_FUNC.values()))
         
     """ Get detector function (NEGative,NORMal,POSitive,RMS,SAMPle,VAVerage,QPEak) """
     def get_detector_function(self):
@@ -423,27 +434,25 @@ class dsa800_config():
         
 if __name__ == '__main__':
     """
-    Example usage code
+    Example usage
+    
+    You may call the connect() function with no arguments to connect
+    to the first detected DSA800, or you can provide it with the VISA
+    ID string of your connected DSA800.
     """
     
-    # The VISA resource name below must be replaced by that of your DSA.
-    visa_id = "USB0::0x1AB1::0x0960::<dsa-serial-num>::INSTR"
-    
-    # Create the DSA object
+    # Create the DSA800 object
     dsa = dsa800()
     
-    # Create the DSA configuration
-    config = dsa800_config()
-    config.param['preamp_en'] = True
-    config.param['units'] = 'DBUV'
-    config.param['emi_filter_en'] = True
-    config.param['rbw'] = 120000
-    
-    # Connect to the DSA using the identity string
+    # Connect to the DSA800
     try:
-        dsa.connect(visa_id)
+        """ Connect to the first detected DSA800 """
+        dsa.connect()
+        """ Connect to the DSA using the identity string """
+        """ The VISA resource name below must be replaced by that of your DSA. """
+        # dsa.connect(idn = "USB0::0x1AB1::0x0960::<dsa-serial-num>::INSTR")
     except:
-        print("Failed to connect to VISA resource:",visa_id)
+        print("Failed to connect to DSA800.")
         print('Please make sure that your DSA is connected via UART, USB or TCP')
         print('Here is a list of the detected VISA resources:')
         for dev in dsa.list_devices():
@@ -453,6 +462,13 @@ if __name__ == '__main__':
     # Display information about connected DSA
     print("Connected to:", dsa.get_id())
 
+    # Create the DSA configuration
+    config = dsa800_config()
+    config.param['preamp_en'] = True
+    config.param['units'] = 'DBUV'
+    config.param['emi_filter_en'] = True
+    config.param['rbw'] = 120000
+    
     # Configure DSA
     dsa.set_config(config)
     
