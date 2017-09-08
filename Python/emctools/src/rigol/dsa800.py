@@ -30,6 +30,34 @@ import visa
 import time
 import numpy as np
 import sys
+from enum import Enum
+import json
+
+"""
+Setting dicts
+
+When querying a setting, the DSA800 sometimes returns a different code than 
+the one used to write the setting. For example, when setting the data format
+to ASCII, we use the setting name 'ASCii' or 'ASC', however, when querying 
+the data format, the DSA800 returns 'ASCII' (all caps). For this reason, we
+use dicts to convert the query results to the names used when we write. This 
+allows for uniformity when storing settings.
+"""
+
+DATA_FORMAT = {'ASCII':'ASCii', 'REAL': 'REAL'}
+    
+UNITS = {'DBM': 'DBM', 'DBMV': 'DBMV', 'DBUV': 'DBUV', 'V': 'V', 'W': 'W'}
+
+TRACE_MODE = {'WRIT': 'WRITe', 'MAXH': 'MAXHold', 
+              'MINH': 'MINHold', 'VIEW': 'VIEW', 
+              'BLAN': 'BLANk', 'VID': 'VIDeoavg', 
+              'POW': 'POWeravg'}
+
+DET_FUNC = {'NEG': 'NEGative', 'NORM': 'NORMal', 
+            'POS':'POSitive', 'RMS':'RMS', 
+            'SAMP':'SAMPle', 'VAV':'VAVerage', 
+            'QPEAK':'QPEak'}
+
 
 """
 DSA800 class to represent the spectrum analyzer
@@ -50,6 +78,7 @@ class dsa800(object):
             'rbw' : {'set':self.set_rbw,'get':self.get_rbw},
             'tg_en' : {'set':self.set_tg_output_en,'get':self.get_tg_output_en},
             'tg_amplitude' : {'set':self.set_tg_amplitude,'get':self.get_tg_amplitude},
+            'det_func' : {'set':self.set_detector_function,'get':self.get_detector_function},
             }
 
     """ Returns a list of detected VISA resource names """
@@ -67,6 +96,17 @@ class dsa800(object):
     def get_id(self):
         return self.resource.query("*IDN?")
 
+    """ Get operation finished """
+    def get_opc(self):
+        if self.resource.query("*OPC?") == '1':
+            return(True)
+        else:
+            return(False)
+
+    """ Trigger a sweep or measurement immediately """
+    def trigger(self):
+        self.resource.write("*TRG")
+
     """ Parse ASCII trace data into a list of numpy floats """
     def parse_ascii(self,data):
         # The first character should be '#'
@@ -80,6 +120,25 @@ class dsa800(object):
         # Split the data by spaces
         str_list = data.split()
         return np.array(str_list[1:],np.float)
+
+    """ Set continuous enable (True,False) """
+    def set_continuous_en(self, en):
+        if en:
+            self.resource.write(":INITiate:CONTinuous ON")
+        else:
+            self.resource.write(":INITiate:CONTinuous OFF")
+
+    """ Get continuous enabled (True,False) """
+    def get_continuous_en(self):
+        en = self.resource.query(":INITiate:CONTinuous?")
+        if((en == "ON") or (en == "1")):
+            return True
+        else:
+            return False
+
+    """ In single measurement mode, trigger a sweep or measurement immediately """
+    def trigger_single_sweep(self):
+        self.resource.write(":INITiate:IMMediate")
 
     """ Set span in Hz (integer) """
     def set_span(self, span):
@@ -174,6 +233,21 @@ class dsa800(object):
     def get_rbw(self):
         return self.resource.query(":SENSe:BAND?")
     
+    """ Get sweep count current (number of sweeps that have been finished in single sweep) """
+    def get_sweep_count_current(self):
+        return int(self.resource.query(":SENSe:SWEep:COUNt:CURRent?"))
+    
+    """ Set sweep count (number of sweeps to be executed in single sweep, 1 to 9999) """
+    def set_sweep_count(self,count):
+        if 1 <= count <= 9999:
+            self.resource.write(":SENSe:SWEep:COUNt %d" % count)
+        else:
+            print('Sweep count must be integer between 1 and 9999')
+    
+    """ Get sweep count (number of sweeps to be executed in single sweep, 1 to 9999) """
+    def get_sweep_count(self):
+        return int(self.resource.query(":SENSe:SWEep:COUNt?"))
+    
     """ Set sweep points (101 to 3001) """
     def set_sweep_points(self,points):
         self.resource.write(":SENSe:SWEep:POINts %d" % points)
@@ -182,6 +256,14 @@ class dsa800(object):
     def get_sweep_points(self):
         return int(self.resource.query(":SENSe:SWEep:POINts?"))
     
+    """ Set sweep time (20e-06 to 3200 seconds) """
+    def set_sweep_time(self,time):
+        self.resource.write(":SENSe:SWEep:TIME %f" % time)
+    
+    """ Get sweep time (20e-06 to 3200 seconds) """
+    def get_sweep_time(self):
+        return float(self.resource.query(":SENSe:SWEep:TIME?"))
+    
     """ Get trace data """
     def get_trace(self):
         result = self.resource.query(":TRACe:DATA? TRACE1")
@@ -189,27 +271,51 @@ class dsa800(object):
         
     """ Set data format (ASCii,REAL) """
     def set_data_format(self,value):
-        self.resource.write(":FORMat:TRACe:DATA ASCii")
+        if value in DATA_FORMAT.values():
+            self.resource.write(":FORMat:TRACe:DATA %s" % value)
+        else:
+            print('Data format must be:',', '.join(DATA_FORMAT.values()))
         
     """ Get data format (ASCii,REAL) """
     def get_data_format(self):
-        return self.resource.query(":FORMat:TRACe:DATA?")
+        value = self.resource.query(":FORMat:TRACe:DATA?")
+        return(DATA_FORMAT[value])
+        
+    """ Set detector function (NEGative,NORMal,POSitive,RMS,SAMPle,VAVerage,QPEak) """
+    def set_detector_function(self,func):
+        if func in DET_FUNC.values():
+            self.resource.write(":DETector:FUNCtion %s" % func)
+        else:
+            print('Data format must be:',', '.join(DET_FUNC.values()))
+        
+    """ Get detector function (NEGative,NORMal,POSitive,RMS,SAMPle,VAVerage,QPEak) """
+    def get_detector_function(self):
+        func = self.resource.query(":DETector:FUNCtion?")
+        return(DET_FUNC[func])
         
     """ Set trace mode (WRITe, MAXHold, MINHold, VIEW, BLANk, VIDeoavg, POWeravg) """
     def set_trace_mode(self,mode):
-        self.resource.write(":TRACe1:MODE %s" % mode)
+        if mode in TRACE_MODE.values():
+            self.resource.write(":TRACe1:MODE %s" % mode)
+        else:
+            print('Trace mode must be:',', '.join(TRACE_MODE.values()))
         
     """ Get trace mode (WRITe, MAXHold, MINHold, VIEW, BLANk, VIDeoavg, POWeravg) """
     def get_trace_mode(self):
-        return self.resource.query(":TRACe1:MODE?")
+        mode = self.resource.query(":TRACe1:MODE?")
+        return(TRACE_MODE[mode])
         
     """ Set units (DBM, DBMV, DBUV, V, W) """
     def set_unit(self,unit):
-        self.resource.write(":UNIT:POWer %s" % unit)
+        if unit in UNITS.values():
+            self.resource.write(":UNIT:POWer %s" % unit)
+        else:
+            print('Units must be:',', '.join(UNITS.values()))
         
     """ Get units (DBM, DBMV, DBUV, V, W)"""
     def get_unit(self):
-        return self.resource.query(":UNIT:POWer?")
+        unit = self.resource.query(":UNIT:POWer?")
+        return(UNITS[unit])
         
     """ Send (install) a purchased license key """
     def send_license_key(self,key):
@@ -224,11 +330,15 @@ class dsa800(object):
         time.sleep(1)
         
     """ Get trace (advanced) - returns 2-dim numpy array of floats """
-    def get_trace_adv(self,start_freq,stop_freq,span,delay=0):
-        # Check the trace mode to determine whether we need to wait for each trace segment
+    def get_trace_adv(self,start_freq,stop_freq,span,sweeps=1):
+        # Record current settings
+        continuous_sweep = self.get_continuous_en()
+        sweep_count = self.get_sweep_count()
+        # Use single sweep mode and requested sweep count
+        self.set_continuous_en(False)
+        self.set_sweep_count(sweeps)
+        # Remember the trace mode, because we need to reset this for each step
         trace_mode = self.get_trace_mode()
-        must_wait = (trace_mode == 'MAXHold') or (trace_mode == 'MINHold') or \
-                    (trace_mode == 'VIDeoavg') or (trace_mode == 'POWeravg')
         # Initialize start frequency and trace list
         start_f = start_freq
         trace = np.array([],np.float)
@@ -241,9 +351,17 @@ class dsa800(object):
             # Set the stop freq
             self.set_stop_freq(start_f + span)
             print("Start:",self.get_start_freq(),"Stop:",self.get_stop_freq(),"Span:",self.get_span())
-            # Allow time to average the trace
-            if must_wait:
-                time.sleep(delay)
+            # Calculate time expected to complete all sweeps and wait
+            wait_time = self.get_sweep_time() * sweeps * 0.9
+            # Trigger the single sweep
+            self.trigger_single_sweep()
+            # Sleep for the expected completion time
+            time.sleep(wait_time)
+            # Wait until sweep count reaches the total count
+            sweep_current = self.get_sweep_count_current()
+            while sweep_current < sweeps:
+                time.sleep(1)
+                sweep_current = self.get_sweep_count_current()
             # Read the trace data
             trace_data = self.get_trace()
             # Append all data except the last point
@@ -251,13 +369,17 @@ class dsa800(object):
             # Increment the start freq
             start_f = start_f + span
         
+        # Return to original sweep settings
+        self.set_continuous_en(continuous_sweep)
+        self.set_sweep_count(sweep_count)
+        
         # Append the endpoint
         trace = np.append(trace,trace_data[-1])
         
         # Generate the frequency points
         freq = np.linspace(start_freq,self.get_stop_freq(),len(trace))
         
-        return(np.array([freq,trace]).T)
+        return(np.array([freq[freq < stop_freq],trace[freq < stop_freq]]).T)
     
     """ Close the connection to the resource """
     def close(self):
@@ -267,20 +389,37 @@ class dsa800(object):
 DSA800 configuration class for storing a particular configuration
 """
 class dsa800_config():
-    def __init__(self):
-        self.param = {
-            'data_format' : 'ASCii',
-            'trace_mode' : 'WRITe',
-            'sweep_points' : 601,
-            'preamp_en' : False,
-            'units' : 'DBM',
-            'emi_filter_en' : False,
-            'rbw' : 100000,
-            'tg_en' : False,
-            'tg_amplitude' : -40,
-            }
+    def __init__(self,param=None,json_keys=None,json_values=None):
+        # If given a list of keys and values as JSON strings
+        if json_keys and json_values:
+            key_list = [json.loads(k) for k in json_keys]
+            value_list = [json.loads(v) for v in json_values]
+            self.param = dict(zip(key_list,value_list))
+        else:
+            # Default parameters
+            self.param = {
+                'data_format' : 'ASCii',
+                'trace_mode' : 'WRITe',
+                'sweep_points' : 601,
+                'preamp_en' : False,
+                'units' : 'DBM',
+                'emi_filter_en' : False,
+                'rbw' : 100000,
+                'tg_en' : False,
+                'tg_amplitude' : -40,
+                'det_func' : 'POSitive'
+                }
+            # Update parameters if provided
+            if param:
+                self.param.update(param)
+            
+    def get_json_names(self):
+        return([json.dumps(k) for k in self.param.keys()])
 
-
+    def get_json_values(self):
+        return([json.dumps(v) for v in self.param.values()])
+    
+        
         
 if __name__ == '__main__':
     """
