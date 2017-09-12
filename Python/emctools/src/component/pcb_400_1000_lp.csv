@@ -6,7 +6,7 @@ http://www.wa5vjb.com/products1.html
 Note that every PCB antenna will be different so you should
 adjust these antenna factors for your particular antenna.
 
-Frequency,AF
+Frequency,Factor
 350000000,18.8
 400000000,18.8
 450000000,17.7

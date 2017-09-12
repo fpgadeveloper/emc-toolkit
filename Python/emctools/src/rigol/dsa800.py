@@ -32,6 +32,7 @@ import numpy as np
 import sys
 from enum import Enum
 import json
+import csv
 
 """
 Setting dicts
@@ -461,7 +462,7 @@ if __name__ == '__main__':
 
     # Display information about connected DSA
     print("Connected to:", dsa.get_id())
-
+    """
     # Create the DSA configuration
     config = dsa800_config()
     config.param['preamp_en'] = True
@@ -471,11 +472,18 @@ if __name__ == '__main__':
     
     # Configure DSA
     dsa.set_config(config)
-    
+    """
     # Get the trace data
     trace_data = dsa.get_trace()
     
     print("Trace data:",trace_data)
+    
+    freq = np.linspace(dsa.get_start_freq(),dsa.get_stop_freq(),601)
+    with open('cable-loss.csv', 'w', newline='') as csvfile:
+        w = csv.writer(csvfile, delimiter=',')
+        # Write the DSA and corrected readings
+        w.writerow(['Frequency (Hz)','Loss'])
+        w.writerows(np.array([freq,trace_data]).T)
     
     # Close the connection with DSA815
     dsa.close()

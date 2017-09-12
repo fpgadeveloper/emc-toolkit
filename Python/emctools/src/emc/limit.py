@@ -14,7 +14,7 @@ Limit class to represent emissions limits
 """
 class limit(object):
     """ """
-    def __init__(self):
+    def __init__(self,standard,units):
         # Create the limits
         self.limit_table = {
             'fccclassa':[(30e6,88e6,300,49.6,90,39.1),
@@ -32,16 +32,19 @@ class limit(object):
             }
         # Limit unit indexes
         self.unit_index = {'uV/m(3m)':2,'dBuV/m(3m)':3,'uV/m(10m)':4,'dBuV/m(10m)':5}
+        # Standard name and units
+        self.standard = standard
+        self.units = units
         
     """ The limits for a given array of frequencies """
-    def limit_func(self,standard,units,freq):
+    def limit_func(self,freq):
         # Create a limit vector the same length as the freq vector
         limit_vec = np.zeros_like(freq)
         # Iterate through the table and apply the appropriate limit
-        for l in self.limit_table[standard]:
-            limit_vec[np.logical_and(freq > l[0],freq <= l[1])] = l[self.unit_index[units]]
+        for l in self.limit_table[self.standard]:
+            limit_vec[np.logical_and(freq > l[0],freq <= l[1])] = l[self.unit_index[self.units]]
         # Handle the lower limit condition
-        limit_vec[freq == self.limit_table[standard][0][0]] = self.limit_table[standard][0][self.unit_index[units]]
+        limit_vec[freq == self.limit_table[self.standard][0][0]] = self.limit_table[self.standard][0][self.unit_index[self.units]]
         return(limit_vec)
     
 
@@ -51,11 +54,11 @@ if __name__ == '__main__':
     Displays the emissions limit
     """
     # Create the limit object
-    l = limit()
+    l = limit('cispr22classb','dBuV/m(3m)')
     
     # Calculate the interpolated afe factors
     f = np.linspace(30e6, 1000e6, 1000)
-    l_func = l.limit_func('cispr22classb','dBuV/m(3m)',f)
+    l_func = l.limit_func(f)
     
     plt.figure()
     plt.plot(f, l_func)

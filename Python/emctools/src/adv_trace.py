@@ -16,7 +16,7 @@ from rigol import dsa800,storage
 import time
 import datetime
 import sys
-from afe import antenna
+from component import component
 from emc import limit
 import json
 
@@ -37,7 +37,8 @@ if __name__ == '__main__':
         # Create default parameters and save the file
         params = {
             'title': 'Product X Radiated Emissions',
-            'antenna': 'afe\\ab900a.csv',
+            'antenna': 'component\\ab900a.csv',
+            'cable': 'component\\ASMA500B174L13.csv',
             'limit_std': 'cispr22classb',
             'limit_units': 'dBuV/m(3m)',
             'span': 100e6,
@@ -56,8 +57,12 @@ if __name__ == '__main__':
     # Create the DSA object
     dsa = dsa800.dsa800()
 
-    # Create the antenna object    
-    ant = antenna.antenna(params['antenna'])
+    # Create the antenna and cable objects    
+    antenna = component.component('Antenna factor',params['antenna'],loss = True)
+    cable = component.component('Cable loss',params['cable'],loss = True)
+    
+    # Create the standard limit
+    lim = limit.limit(params['limit_std'],params['limit_units'])
     
     # Start timing
     start_time = time.time()
@@ -87,20 +92,13 @@ if __name__ == '__main__':
     - Use 'sweeps' from measurement parameters dict
     """
     trace_data = dsa.get_trace_adv(
-        ant.start_freq,
-        ant.stop_freq,
+        antenna.start_freq,
+        antenna.stop_freq,
         params['span'],
         sweeps = params['sweeps'])
     
     # Close the connection with DSA815
     dsa.close()
-    
-    # Correct the trace data for the antenna factors
-    corrected =  ant.corrected_measurement(trace_data)
-    
-    # Calculate the limit
-    lim = limit.limit()
-    limit_data = lim.limit_func(params['limit_std'],params['limit_units'],trace_data[:,:-1])
     
     #  Create a unique filename using the date and time
     d = datetime.datetime.now()
@@ -108,7 +106,10 @@ if __name__ == '__main__':
     
     # Write trace to CSV and PNG file
     measurement = storage.Measurement(params['title'],config)
-    measurement.add_data(trace_data[:,0],trace_data[:,1],corrected[:,1],limit_data[:,0])
+    measurement.add_trace(trace_data)
+    measurement.add_component(antenna)
+    measurement.add_component(cable)
+    measurement.add_limit(lim)
     measurement.save_to_csv('%s.csv' % filename)
     measurement.save_to_png('%s.png' % filename)
     

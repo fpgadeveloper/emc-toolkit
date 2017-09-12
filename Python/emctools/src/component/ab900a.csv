@@ -6,7 +6,7 @@ https://www.com-power.com/Ab900_Biconical_Antenna.html
 Note that every AB-900A antenna will be different so you should
 adjust these antenna factors for your particular antenna.
 
-Frequency,AF
+Frequency,Factor
 25000000,11.66
 30000000,12.48
 35000000,11.6

@@ -17,6 +17,8 @@ class Measurement(object):
         else:
             self.title = title
             self.config = dsaconfig
+        self.components = []
+        self.lim = None
         
     def freq(self):
         return(self.data[:,0])
@@ -25,14 +27,26 @@ class Measurement(object):
         return(self.data[:,1])
     
     def corrected(self):
-        return(self.data[:,2])
+        # Correct the trace data for each of the components
+        corrected = np.empty_like(self.data)
+        corrected[:] = self.data
+        for c in self.components:
+            corrected = c.corrected_measurement(corrected)
+        return(corrected[:,1])
     
     def limit(self):
-        return(self.data[:,3])
+        return(self.lim.limit_func(self.freq()))
     
-    def add_data(self,freq,trace,corrected,limit):
-        self.data = np.array([freq,trace,corrected,limit]).T
+    def add_trace(self,trace):
+        self.data = np.empty_like(trace)
+        self.data[:] = trace
         
+    def add_component(self,comp):
+        self.components.append(comp)
+    
+    def add_limit(self,limit):
+        self.lim = limit
+    
     def save_to_csv(self,filename):
         with open(filename, 'w', newline='') as csvfile:
             w = csv.writer(csvfile, delimiter=',')
@@ -41,8 +55,23 @@ class Measurement(object):
             w.writerow(self.config.get_json_names())
             w.writerow(self.config.get_json_values())
             # Write the DSA and corrected readings
-            w.writerow(['Frequency (Hz)','DSA','Corrected','Limit'])
-            w.writerows(self.data)
+            headings = ['Frequency (Hz)','DSA']
+            columns = [self.freq(),self.measured()]
+            # Add all component data
+            for c in self.components:
+                headings.append(c.name)
+                columns.append(c.get_factors(self.freq()))
+            # Add the corrected measurement
+            if len(self.components) > 0:
+                headings.append('Corrected')
+                columns.append(self.corrected())
+            # Add the limit
+            if self.lim:
+                headings.append('Limit')
+                columns.append(self.limit())
+            # Write the data
+            w.writerow(headings)
+            w.writerows(np.array(columns).T)
         
     def load_csv(self,filename):
         with open(filename) as csvfile:
@@ -59,8 +88,12 @@ class Measurement(object):
     def save_to_png(self,filename):
         # Plot the data to image file
         fig = plt.figure()
-        plt.plot(self.freq(),self.corrected(),'-b',label='Measured')
-        plt.plot(self.freq(),self.limit(),'-r',label='Limit')
+        if len(self.components) > 0:
+            plt.plot(self.freq(),self.corrected(),'-b',label='Measured')
+        else:
+            plt.plot(self.freq(),self.measured(),'-b',label='Trace')
+        if self.lim:
+            plt.plot(self.freq(),self.limit(),'-r',label='Limit')
         plt.legend(loc='lower right')
         fig.suptitle(self.title, fontsize=18)
         plt.xlabel('Frequency (Hz)', fontsize=12)
