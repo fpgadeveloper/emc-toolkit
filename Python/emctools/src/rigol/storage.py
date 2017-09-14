@@ -19,6 +19,8 @@ class Measurement(object):
             self.config = dsaconfig
         self.components = []
         self.lim = None
+        self.corrected_data = None
+        self.limit_data = None
         
     def freq(self):
         return(self.data[:,0])
@@ -27,6 +29,8 @@ class Measurement(object):
         return(self.data[:,1])
     
     def corrected(self):
+        if self.corrected_data:
+            return(self.corrected_data)
         # Correct the trace data for each of the components
         corrected = np.empty_like(self.data)
         corrected[:] = self.data
@@ -35,6 +39,8 @@ class Measurement(object):
         return(corrected[:,1])
     
     def limit(self):
+        if self.limit_data:
+            return(self.limit_data)
         return(self.lim.limit_func(self.freq()))
     
     def add_trace(self,trace):
@@ -82,8 +88,13 @@ class Measurement(object):
             config_keys = next(r)
             config_values = next(r)
             self.config = rigol.dsa800.dsa800_config(config_keys,config_values)
-            next(r)
+            # Data
+            headings = next(r)
             self.data = np.array(list(r),dtype=np.float)
+            # Get the corrected data and limit
+            heading_index = dict((v,i) for i,v in enumerate(headings))
+            self.corrected_data = self.data[:,heading_index['Corrected']]
+            self.limit_data = self.data[:,heading_index['Limit']]
         
     def save_to_png(self,filename):
         # Plot the data to image file
@@ -98,6 +109,10 @@ class Measurement(object):
         fig.suptitle(self.title, fontsize=18)
         plt.xlabel('Frequency (Hz)', fontsize=12)
         plt.ylabel('Power (%s)' % self.config.param['units'], fontsize=12)
+        ax = fig.gca()
+        ymin, ymax = ax.yaxis.get_data_interval()
+        ax.set_ylim([np.floor(ymin/5)*5,np.ceil(ymax/5)*5])
+        plt.grid()
         fig.savefig('%s.png' % filename, dpi=900)
         plt.clf()
         plt.close(fig)

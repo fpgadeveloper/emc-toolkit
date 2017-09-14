@@ -43,6 +43,8 @@ if __name__ == '__main__':
             'limit_units': 'dBuV/m(3m)',
             'span': 100e6,
             'sweeps': 10,
+            'start_freq': None,
+            'stop_freq': None,
             'dsa_cfg': {
                 'trace_mode': 'MAXHold',
                 'preamp_en': True,
@@ -85,6 +87,16 @@ if __name__ == '__main__':
     # Configure DSA815
     dsa.set_config(config)
     
+    # The start and stop frequencies
+    if params['start_freq']:
+        start_freq = params['start_freq']
+    else:
+        start_freq = antenna.start_freq
+    if params['stop_freq']:
+        stop_freq = params['stop_freq']
+    else:
+        stop_freq = antenna.stop_freq
+        
     """
     Perform the advanced trace
     - Use antenna limits to determine start and stop frequencies
@@ -92,8 +104,8 @@ if __name__ == '__main__':
     - Use 'sweeps' from measurement parameters dict
     """
     trace_data = dsa.get_trace_adv(
-        antenna.start_freq,
-        antenna.stop_freq,
+        start_freq,
+        stop_freq,
         params['span'],
         sweeps = params['sweeps'])
     

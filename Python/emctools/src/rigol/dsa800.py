@@ -59,6 +59,8 @@ DET_FUNC = {'NEG': 'NEGative', 'NORM': 'NORMal',
             'SAMP':'SAMPle', 'VAV':'VAVerage', 
             'QPEAK':'QPEak'}
 
+SWEEP_TIME_METHOD = {'NORM': 'NORMal', 'ACC': 'ACCuracy'}
+
 
 """
 DSA800 class to represent the spectrum analyzer
@@ -133,6 +135,25 @@ class dsa800(object):
         str_list = data.split()
         return np.array(str_list[1:],np.float)
 
+    """ Calibrate all """
+    def calibrate(self):
+        self.resource.write(":CALibration:ALL")
+
+    """ Set auto calibrate enable """
+    def set_auto_calibration_en(self,en):
+        if en:
+            self.resource.write(":CALibration:AUTO ON")
+        else:
+            self.resource.write(":CALibration:AUTO OFF")
+
+    """ Get auto calibrate enable """
+    def get_auto_calibration_en(self):
+        en = self.resource.query(":CALibration:AUTO?")
+        if(en == "1"):
+            return True
+        else:
+            return False
+        
     """ Set continuous enable (True,False) """
     def set_continuous_en(self, en):
         if en:
@@ -151,6 +172,10 @@ class dsa800(object):
     """ In single measurement mode, trigger a sweep or measurement immediately """
     def trigger_single_sweep(self):
         self.resource.write(":INITiate:IMMediate")
+
+    """ In single measurement mode, trigger a sweep or measurement immediately """
+    def abort(self):
+        self.resource.write(":ABORt")
 
     """ Set span in Hz (integer) """
     def set_span(self, span):
@@ -276,6 +301,18 @@ class dsa800(object):
     def get_sweep_time(self):
         return float(self.resource.query(":SENSe:SWEep:TIME?"))
     
+    """ Set the setting method of the auto sweep time (NORMal, ACCuracy) """
+    def set_sweep_time_method(self,setting):
+        if setting in SWEEP_TIME_METHOD.values():
+            self.resource.write(":SENSe:SWEep:TIME:AUTO:RULes %s" % setting)
+        else:
+            print('Sweep time method must be:',', '.join(SWEEP_TIME_METHOD.values()))
+    
+    """ Get the setting method of the auto sweep time (NORMal, ACCuracy) """
+    def get_sweep_time_method(self):
+        setting = self.resource.query(":SENSe:SWEep:TIME:AUTO:RULes?")
+        return(SWEEP_TIME_METHOD[setting])
+    
     """ Get trace data """
     def get_trace(self):
         result = self.resource.query(":TRACe:DATA? TRACE1")
@@ -329,6 +366,10 @@ class dsa800(object):
         unit = self.resource.query(":UNIT:POWer?")
         return(UNITS[unit])
         
+    """ Recall the preset setting """
+    def preset(self):
+        self.resource.write(":SYSTem:PRESet")
+        
     """ Send (install) a purchased license key """
     def send_license_key(self,key):
         self.resource.write(":SYSTem:LKEY %s" % key)
@@ -346,9 +387,12 @@ class dsa800(object):
         # Record current settings
         continuous_sweep = self.get_continuous_en()
         sweep_count = self.get_sweep_count()
+        auto_calib = self.get_auto_calibration_en()
         # Use single sweep mode and requested sweep count
-        self.set_continuous_en(False)
         self.set_sweep_count(sweeps)
+        self.set_continuous_en(False)
+        # Disable auto calibration during the measurement
+        self.set_auto_calibration_en(False)
         # Remember the trace mode, because we need to reset this for each step
         trace_mode = self.get_trace_mode()
         # Initialize start frequency and trace list
@@ -365,7 +409,7 @@ class dsa800(object):
             print("Start:",self.get_start_freq(),"Stop:",self.get_stop_freq(),"Span:",self.get_span())
             # Calculate time expected to complete all sweeps and wait
             wait_time = self.get_sweep_time() * sweeps * 0.9
-            # Trigger the single sweep
+            # Trigger a single sweep
             self.trigger_single_sweep()
             # Sleep for the expected completion time
             time.sleep(wait_time)
@@ -384,6 +428,7 @@ class dsa800(object):
         # Return to original sweep settings
         self.set_continuous_en(continuous_sweep)
         self.set_sweep_count(sweep_count)
+        self.set_auto_calibration_en(auto_calib)
         
         # Append the endpoint
         trace = np.append(trace,trace_data[-1])
@@ -462,7 +507,7 @@ if __name__ == '__main__':
 
     # Display information about connected DSA
     print("Connected to:", dsa.get_id())
-    """
+    
     # Create the DSA configuration
     config = dsa800_config()
     config.param['preamp_en'] = True
@@ -472,18 +517,11 @@ if __name__ == '__main__':
     
     # Configure DSA
     dsa.set_config(config)
-    """
+    
     # Get the trace data
     trace_data = dsa.get_trace()
     
     print("Trace data:",trace_data)
-    
-    freq = np.linspace(dsa.get_start_freq(),dsa.get_stop_freq(),601)
-    with open('cable-loss.csv', 'w', newline='') as csvfile:
-        w = csv.writer(csvfile, delimiter=',')
-        # Write the DSA and corrected readings
-        w.writerow(['Frequency (Hz)','Loss'])
-        w.writerows(np.array([freq,trace_data]).T)
     
     # Close the connection with DSA815
     dsa.close()
