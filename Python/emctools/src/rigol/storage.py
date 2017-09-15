@@ -97,6 +97,9 @@ class Measurement(object):
             self.limit_data = self.data[:,heading_index['Limit']]
         
     def save_to_png(self,filename):
+        # Add .png extension to filename if needed
+        if filename.endswith('.png') == False:
+            filename = '%s.png' % filename
         # Plot the data to image file
         fig = plt.figure()
         if len(self.components) > 0:
@@ -113,7 +116,7 @@ class Measurement(object):
         ymin, ymax = ax.yaxis.get_data_interval()
         ax.set_ylim([np.floor(ymin/5)*5,np.ceil(ymax/5)*5])
         plt.grid()
-        fig.savefig('%s.png' % filename, dpi=900)
+        fig.savefig(filename, dpi=900)
         plt.clf()
         plt.close(fig)
         

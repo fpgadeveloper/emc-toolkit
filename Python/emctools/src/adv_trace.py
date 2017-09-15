@@ -19,7 +19,7 @@ import sys
 from component import component
 from emc import limit
 import json
-
+import os
 
 
 if __name__ == '__main__':
@@ -33,10 +33,11 @@ if __name__ == '__main__':
         # Load the parameters from the params.txt file
         with open(param_file) as fp:
             params = json.load(fp)
-    except:
+    except IOError:
         # Create default parameters and save the file
         params = {
             'title': 'Product X Radiated Emissions',
+            'dir': 'trace_dir',
             'antenna': 'component\\ab900a.csv',
             'cable': 'component\\ASMA500B174L13.csv',
             'limit_std': 'cispr22classb',
@@ -114,7 +115,11 @@ if __name__ == '__main__':
     
     #  Create a unique filename using the date and time
     d = datetime.datetime.now()
-    filename = 'trace-%s' % d.strftime('%Y-%m-%d-%H%M%S')
+    filename = '%s\\trace-%s' % (params['dir'], d.strftime('%Y-%m-%d-%H%M%S'))
+    
+    # Create a directory for the measurement data
+    if not os.path.exists(params['dir']):
+        os.makedirs(params['dir'])
     
     # Write trace to CSV and PNG file
     measurement = storage.Measurement(params['title'],config)
