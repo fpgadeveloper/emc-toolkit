@@ -78,7 +78,7 @@ if __name__ == '__main__':
     """
     
     # Create the compoment
-    antenna = component('ASMA500B174L13.csv',loss = True)
+    antenna = component('Antenna factor','ab900a.csv',loss = True)
     
     # f = frequency, gl = gain/loss factor 
     f = antenna.factors.T[0]

@@ -1,0 +1,10 @@
+Profile of an ideal antenna or an ideal cable
+
+For antennas: use this profile when antenna factors are not known and power measurement accuracy is NOT required.
+For cables: use this profile when using very short cables with negligible loss.
+
+Frequency,Factor
+0,0
+500000000,0
+1000000000,0
+1500000000,0
